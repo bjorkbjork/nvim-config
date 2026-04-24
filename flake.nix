@@ -36,7 +36,7 @@
         tools = with pkgs; [
           lua-language-server                       # lua_ls
           clang-tools                               # clangd
-          python-lsp-server                         # pylsp (manually wired in init.lua)
+          python3Packages.python-lsp-server         # pylsp (manually wired in init.lua)
           nixd                                      # nixd (Nix LSP)
           rust-analyzer                             # rust_analyzer
           nodePackages.typescript-language-server   # ts_ls
