@@ -39,8 +39,8 @@
           python3Packages.python-lsp-server         # pylsp (manually wired in init.lua)
           nixd                                      # nixd (Nix LSP)
           rust-analyzer                             # rust_analyzer
-          nodePackages.typescript-language-server   # ts_ls
-          nodePackages.typescript                   # tsserver — ts_ls depends on it
+          typescript-language-server                # ts_ls
+          typescript                                # tsserver — ts_ls depends on it
           black                                     # python formatter (via pylsp-black)
           stylua                                    # lua formatter (via conform.nvim)
           ripgrep                                   # telescope grep
