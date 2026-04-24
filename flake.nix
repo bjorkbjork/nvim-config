@@ -21,8 +21,8 @@
             # with gcc + tree-sitter CLI; telescope uses ripgrep + fd.
             gcc
             git
-            tree-sitter
             ripgrep
+            lua55Packages.tree-sitter-cli
             fd
 
             # Language servers — must match the `servers` table in init.lua.

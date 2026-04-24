@@ -1,0 +1,13 @@
+cd ~/.config/nvim && git commit -m "$(cat <<'EOF'
+Add nix flake + env-gated init.lua for portable cloud-PC setup
+
+flake.nix builds a neovim wrapper with bundled treesitter parsers and
+LSPs (clangd, lua_ls, pylsp, nixd, rust-analyzer, ts_ls), plus
+formatters (stylua, black) and runtime deps (ripgrep, fd, gcc, git).
+Sets NVIM_NIX=1 so init.lua skips Mason installers and wires LSPs
+directly via lspconfig. Arch behavior is unchanged when NVIM_NIX is
+unset; the added servers simply flow through Mason on Arch as usual.
+EOF
+)" && git push)
+
+
