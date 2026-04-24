@@ -18,9 +18,10 @@
             neovim
 
             # Baseline: lazy.nvim clones with git; treesitter compiles parsers
-            # with gcc; telescope uses ripgrep + fd.
+            # with gcc + tree-sitter CLI; telescope uses ripgrep + fd.
             gcc
             git
+            tree-sitter
             ripgrep
             fd
 
