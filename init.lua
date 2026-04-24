@@ -90,6 +90,12 @@ P.S. You can delete this when you're done too. It's your config now! :)
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
+-- Set by the nix flake's wrapped nvim. When true, treesitter parsers and LSPs
+-- come from the nix environment ($PATH + bundled runtime) and we skip Mason's
+-- installers to avoid failed downloads on read-only / non-standard systems.
+local is_nix = vim.env.NVIM_NIX == '1'
+vim.g.is_nix = is_nix
+
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = true
 
@@ -884,14 +890,10 @@ require('lazy').setup({
         },
         -- gopls = {},
         -- pyright = {},
-        -- rust_analyzer = {},
+        rust_analyzer = {},
+        ts_ls = {},
+        nixd = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
-        --
-        -- Some languages (like typescript) have entire language plugins that can be useful:
-        --    https://github.com/pmizio/typescript-tools.nvim
-        --
-        -- But for many setups, the LSP (`ts_ls`) will work just fine
-        -- ts_ls = {},
         --
         lua_ls = {
           -- cmd = { ... },
@@ -922,30 +924,35 @@ require('lazy').setup({
       --
       -- You can add other tools here that you want Mason to install
       -- for you, so that they are available from within Neovim.
-      local ensure_installed = vim.tbl_keys(servers or {})
-      vim.list_extend(ensure_installed, {
-        'stylua', -- Used to format Lua code
-      })
-      require('mason-tool-installer').setup { ensure_installed = ensure_installed }
+      if is_nix then
+        -- LSPs are provided by the nix flake on $PATH — set them up directly,
+        -- bypassing Mason entirely.
+        for server_name, server in pairs(servers) do
+          server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
+          require('lspconfig')[server_name].setup(server)
+        end
+      else
+        local ensure_installed = vim.tbl_keys(servers or {})
+        vim.list_extend(ensure_installed, {
+          'stylua', -- Used to format Lua code
+        })
+        require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
-      print('ensure_installed contains:', vim.inspect(ensure_installed))
-
-      require('mason-lspconfig').setup {
-        ensure_installed = {}, -- explicitly set to an empty table (Kickstart populates installs via mason-tool-installer)
-        automatic_installation = false,
-        handlers = {
-          function(server_name)
-            print('HANDLER CALLED FOR:', server_name)
-
-            local server = servers[server_name] or {}
-            -- This handles overriding only values explicitly passed
-            -- by the server configuration above. Useful when disabling
-            -- certain features of an LSP (for example, turning off formatting for ts_ls)
-            server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
-            require('lspconfig')[server_name].setup(server)
-          end,
-        },
-      }
+        require('mason-lspconfig').setup {
+          ensure_installed = {}, -- explicitly set to an empty table (Kickstart populates installs via mason-tool-installer)
+          automatic_installation = false,
+          handlers = {
+            function(server_name)
+              local server = servers[server_name] or {}
+              -- This handles overriding only values explicitly passed
+              -- by the server configuration above. Useful when disabling
+              -- certain features of an LSP (for example, turning off formatting for ts_ls)
+              server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
+              require('lspconfig')[server_name].setup(server)
+            end,
+          },
+        }
+      end
       require('lspconfig').pylsp.setup {
         capabilities = capabilities,
         settings = {
@@ -1263,9 +1270,10 @@ require('lazy').setup({
     main = 'nvim-treesitter.configs', -- Sets main module to use for opts
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
     opts = {
-      ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
+      -- In nix mode, parsers are bundled via the flake's nvim wrapper; avoid compiling.
+      ensure_installed = vim.g.is_nix and {} or { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
       -- Autoinstall languages that are not installed
-      auto_install = true,
+      auto_install = not vim.g.is_nix,
       highlight = {
         enable = true,
         -- Some languages depend on vim's regex highlighting system (such as Ruby) for indent rules.
