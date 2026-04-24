@@ -91,7 +91,7 @@ vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
 -- Set to true if you have a Nerd Font installed and selected in the terminal
-vim.g.have_nerd_font = false
+vim.g.have_nerd_font = true
 
 -- [[ Setting options ]]
 -- See `:help vim.o`
@@ -102,7 +102,7 @@ vim.g.have_nerd_font = false
 vim.o.number = true
 -- You can also add relative line numbers, to help with jumping.
 --  Experiment for yourself to see if you like it!
--- vim.o.relativenumber = true
+vim.o.relativenumber = true
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.o.mouse = 'a'
@@ -152,6 +152,24 @@ vim.o.splitbelow = true
 vim.o.list = true
 vim.opt.listchars = { tab = '» ', trail = '·', nbsp = '␣' }
 
+vim.opt.tabstop = 2 -- Number of spaces that a <Tab> in the file counts for
+vim.opt.shiftwidth = 2 -- Number of spaces to use for each step of (auto)indent
+vim.opt.expandtab = true -- Use spaces instead of tabs
+vim.opt.softtabstop = 2 -- Number of spaces that a <Tab> counts for while editing
+vim.opt.autoindent = true -- Copy indent from current line when starting a new line
+vim.opt.smartindent = true -- Smart autoindenting when starting a new line
+
+-- C-specific indentation
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'c',
+  callback = function()
+    vim.opt_local.tabstop = 4 -- Tab width
+    vim.opt_local.shiftwidth = 4 -- Indent width
+    vim.opt_local.softtabstop = 4 -- Backspace behavior
+    vim.opt_local.expandtab = true -- Use spaces instead of tabs
+  end,
+})
+
 -- Preview substitutions live, as you type!
 vim.o.inccommand = 'split'
 
@@ -184,11 +202,31 @@ vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagn
 -- or just use <C-\><C-n> to exit terminal mode
 vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 
+-- In your LSP on_attach function or keymaps config
+vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, { desc = 'Code action' })
+
+-- NOTE: This is my autosaving feature, runs every 5 minutes
+-- Add to your init.lua
+-- Auto-save every 5 minutes (300 seconds)
+vim.fn.timer_start(300000, function()
+  -- Only save if buffer is modified and has a filename
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].modified and vim.bo[buf].buftype == '' then
+      local filename = vim.api.nvim_buf_get_name(buf)
+      if filename ~= '' then
+        vim.api.nvim_buf_call(buf, function()
+          vim.cmd 'silent! write'
+        end)
+      end
+    end
+  end
+end, { ['repeat'] = -1 })
+
 -- TIP: Disable arrow keys in normal mode
--- vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
--- vim.keymap.set('n', '<right>', '<cmd>echo "Use l to move!!"<CR>')
--- vim.keymap.set('n', '<up>', '<cmd>echo "Use k to move!!"<CR>')
--- vim.keymap.set('n', '<down>', '<cmd>echo "Use j to move!!"<CR>')
+vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
+vim.keymap.set('n', '<right>', '<cmd>echo "Use l to move!!"<CR>')
+vim.keymap.set('n', '<up>', '<cmd>echo "Use k to move!!"<CR>')
+vim.keymap.set('n', '<down>', '<cmd>echo "Use j to move!!"<CR>')
 
 -- Keybinds to make split navigation easier.
 --  Use CTRL+<hjkl> to switch between windows
@@ -198,6 +236,114 @@ vim.keymap.set('n', '<C-h>', '<C-w><C-h>', { desc = 'Move focus to the left wind
 vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right window' })
 vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
 vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
+
+-- Tab to indent in visual mode
+vim.keymap.set('v', '<Tab>', '>gv', { desc = 'Indent selection' })
+
+-- Shift+Tab to unindent in visual mode
+vim.keymap.set('v', '<S-Tab>', '<gv', { desc = 'Unindent selection' })
+
+-- Optional: Tab/Shift+Tab in normal mode to indent/unindent current line
+vim.keymap.set('n', '<Tab>', '>>', { desc = 'Indent current line' })
+vim.keymap.set('n', '<S-Tab>', '<<', { desc = 'Unindent current line' })
+
+vim.keymap.set('n', '<C-_>', 'gcc', { desc = 'Toggle comment line', remap = true })
+vim.keymap.set('v', '<C-_>', 'gc', { desc = 'Toggle comment selection', remap = true })
+
+-- Custom keybindings for VS Code-like experience
+vim.keymap.set('n', '<C-z>', 'u', { desc = 'Undo' })
+vim.keymap.set('i', '<C-z>', '<C-o>u', { desc = 'Undo' })
+vim.keymap.set('n', '<C-y>', '<C-r>', { desc = 'Redo' })
+vim.keymap.set('i', '<C-y>', '<C-o><C-r>', { desc = 'Redo' })
+
+-- Remove the toggleterm plugin and use this instead
+
+-- Add this anywhere in your init.lua
+vim.diagnostic.config {
+  virtual_text = true,
+  signs = true,
+  underline = true,
+  severity_sort = true,
+}
+
+local term_buf = nil
+local term_win = nil
+
+local function toggle_bottom_terminal()
+  -- Check if terminal window exists and is valid
+  if term_win and vim.api.nvim_win_is_valid(term_win) then
+    vim.api.nvim_win_close(term_win, false)
+    term_win = nil
+  else
+    -- Create bottom split that spans full width
+    vim.cmd 'botright split'
+    vim.cmd 'resize 15'
+
+    if term_buf and vim.api.nvim_buf_is_valid(term_buf) then
+      -- Use existing terminal buffer
+      vim.api.nvim_win_set_buf(0, term_buf)
+    else
+      -- Create new terminal
+      vim.cmd 'terminal'
+      term_buf = vim.api.nvim_get_current_buf()
+
+      -- Set terminal-specific options
+      vim.opt_local.number = false
+      vim.opt_local.relativenumber = false
+      vim.opt_local.signcolumn = 'no'
+    end
+
+    term_win = vim.api.nvim_get_current_win()
+  end
+end
+
+-- Keybinding
+vim.keymap.set('n', '<leader>t', toggle_bottom_terminal, { desc = 'Toggle bottom terminal' })
+
+-- Terminal mode keybindings for easy navigation
+vim.keymap.set('t', '<Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
+
+-- Easy window switching
+vim.keymap.set('t', '<C-w>h', '<C-\\><C-n><C-w>h', { desc = 'Go to left window' })
+vim.keymap.set('t', '<C-w>j', '<C-\\><C-n><C-w>j', { desc = 'Go to down window' })
+vim.keymap.set('t', '<C-w>k', '<C-\\><C-n><C-w>k', { desc = 'Go to up window' })
+vim.keymap.set('t', '<C-w>l', '<C-\\><C-n><C-w>l', { desc = 'Go to right window' })
+
+-- Exit terminal mode easily
+vim.keymap.set('t', '<Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
+
+-- Move line up/down in normal mode
+vim.keymap.set('n', '<M-k>', ':m .-2<CR>==', { desc = 'Move line up' })
+vim.keymap.set('n', '<M-j>', ':m .+1<CR>==', { desc = 'Move line down' })
+
+-- Move lines up/down in visual mode
+vim.keymap.set('v', '<M-k>', ":m '<-2<CR>gv=gv", { desc = 'Move selection up' })
+vim.keymap.set('v', '<M-j>', ":m '>+1<CR>gv=gv", { desc = 'Move selection down' })
+
+-- Move lines in insert mode
+vim.keymap.set('i', '<M-k>', '<Esc>:m .-2<CR>==gi', { desc = 'Move line up' })
+vim.keymap.set('i', '<M-j>', '<Esc>:m .+1<CR>==gi', { desc = 'Move line down' })
+
+-- Auto-import function
+local function auto_import_under_cursor()
+  -- Save current position
+  local pos = vim.api.nvim_win_get_cursor(0)
+
+  -- Trigger completion
+  vim.lsp.buf.completion()
+  -- Small delay to let completion load
+  vim.defer_fn(function()
+    -- Look for completion items with "import" in the kind or detail
+    local items = vim.v.completed_item
+    if items and items.kind and string.match(items.kind:lower(), 'import') then
+      -- Accept the first import suggestion
+      vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<C-y>', true, false, true), 'n', false)
+    end
+  end, 100)
+end
+
+-- Bind to a key
+vim.keymap.set('n', '<leader>i', auto_import_under_cursor, { desc = 'Auto import under cursor' })
 
 -- NOTE: Some terminals have colliding keymaps or are not able to send distinct keycodes
 -- vim.keymap.set("n", "<C-S-h>", "<C-w>H", { desc = "Move window to the left" })
@@ -211,6 +357,25 @@ vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper win
 -- Highlight when yanking (copying) text
 --  Try it with `yap` in normal mode
 --  See `:help vim.hl.on_yank()`
+
+-- Function to copy and show feedback
+local function copy_to_clipboard()
+  -- In visual mode, yank selection
+  if vim.fn.mode() == 'v' or vim.fn.mode() == 'V' then
+    vim.cmd 'normal! "+y'
+    vim.notify('Copied selection to clipboard', vim.log.levels.INFO)
+  else
+    -- In normal mode, yank current line
+    vim.cmd 'normal! "+yy'
+    vim.notify('Copied line to clipboard', vim.log.levels.INFO)
+  end
+end
+
+-- NOTE: Claude Code related keymaps
+vim.keymap.set('n', '<leader>cc', '<cmd>ClaudeCode<CR>', { desc = 'Toggle Claude Code' })
+
+vim.keymap.set({ 'n', 'v' }, '<C-c>', copy_to_clipboard, { desc = 'Copy to system clipboard' })
+
 vim.api.nvim_create_autocmd('TextYankPost', {
   desc = 'Highlight when yanking (copying) text',
   group = vim.api.nvim_create_augroup('kickstart-highlight-yank', { clear = true }),
@@ -218,6 +383,19 @@ vim.api.nvim_create_autocmd('TextYankPost', {
     vim.hl.on_yank()
   end,
 })
+
+-- Force all files to be modifiable
+vim.api.nvim_create_autocmd({ 'BufRead', 'BufNewFile', 'BufEnter' }, {
+  pattern = '*',
+  callback = function()
+    vim.opt_local.modifiable = true
+    vim.opt_local.readonly = false
+  end,
+})
+
+-- Also set global defaults
+vim.opt.modifiable = true
+vim.opt.readonly = false
 
 -- [[ Install `lazy.nvim` plugin manager ]]
 --    See `:help lazy.nvim.txt` or https://github.com/folke/lazy.nvim for more info
@@ -271,6 +449,24 @@ require('lazy').setup({
   -- options to `gitsigns.nvim`.
   --
   -- See `:help gitsigns` to understand what the configuration keys do
+  -- Claude code integration
+  {
+    'greggh/claude-code.nvim',
+    dependencies = {
+      'nvim-lua/plenary.nvim', -- Required for git operations
+    },
+    config = function()
+      require('claude-code').setup {
+        command = 'claude',
+        window = {
+          position = 'botright vsplit',
+          split_ratio = 0.3,
+          enter_insert = true,
+        },
+      }
+    end,
+  },
+
   { -- Adds git related signs to the gutter, as well as utilities for managing changes
     'lewis6991/gitsigns.nvim',
     opts = {
@@ -283,6 +479,12 @@ require('lazy').setup({
       },
     },
   },
+  {
+    'numToStr/Comment.nvim',
+    opts = {},
+    lazy = false,
+  },
+  -- In your plugin config
 
   -- NOTE: Plugins can also be configured to run Lua code when they are loaded.
   --
@@ -407,11 +609,17 @@ require('lazy').setup({
         -- You can put your default mappings / updates / etc. in here
         --  All the info you're looking for is in `:help telescope.setup()`
         --
-        -- defaults = {
-        --   mappings = {
-        --     i = { ['<c-enter>'] = 'to_fuzzy_refine' },
-        --   },
-        -- },
+        defaults = {
+          --   mappings = {
+          --     i = { ['<c-enter>'] = 'to_fuzzy_refine' },
+          --   },
+          layout_config = {
+            cursor = {
+              width = 120,
+              height = 25,
+            },
+          },
+        },
         -- pickers = {}
         extensions = {
           ['ui-select'] = {
@@ -671,7 +879,9 @@ require('lazy').setup({
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
-        -- clangd = {},
+        clangd = {
+          cmd = { 'clangd', '--clang-tidy', '--background-index' },
+        },
         -- gopls = {},
         -- pyright = {},
         -- rust_analyzer = {},
@@ -683,7 +893,6 @@ require('lazy').setup({
         -- But for many setups, the LSP (`ts_ls`) will work just fine
         -- ts_ls = {},
         --
-
         lua_ls = {
           -- cmd = { ... },
           -- filetypes = { ... },
@@ -719,11 +928,15 @@ require('lazy').setup({
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
+      print('ensure_installed contains:', vim.inspect(ensure_installed))
+
       require('mason-lspconfig').setup {
         ensure_installed = {}, -- explicitly set to an empty table (Kickstart populates installs via mason-tool-installer)
         automatic_installation = false,
         handlers = {
           function(server_name)
+            print('HANDLER CALLED FOR:', server_name)
+
             local server = servers[server_name] or {}
             -- This handles overriding only values explicitly passed
             -- by the server configuration above. Useful when disabling
@@ -733,9 +946,88 @@ require('lazy').setup({
           end,
         },
       }
+      require('lspconfig').pylsp.setup {
+        capabilities = capabilities,
+        settings = {
+          pylsp = {
+            plugins = {
+              pycodestyle = { enabled = false },
+              black = {
+                enabled = true,
+                line_length = 88, -- Black's default, adjust if needed
+              },
+              pylint = {
+                enabled = false,
+              },
+              pyflakes = {
+                enabled = false,
+              },
+              mccabe = {
+                enabled = false,
+              },
+              autopep8 = {
+                enabled = false,
+              },
+              yapf = {
+                enabled = false,
+              },
+              rope_completion = {
+                enabled = true,
+              },
+              rope_autoimport = {
+                enabled = true,
+              },
+              jedi_completion = {
+                enabled = true,
+                include_params = true,
+              },
+              jedi_hover = {
+                enabled = true,
+              },
+              jedi_references = {
+                enabled = true,
+              },
+              jedi_signature_help = {
+                enabled = true,
+              },
+              jedi_symbols = {
+                enabled = true,
+                all_scopes = true,
+              },
+            },
+          },
+        },
+        on_attach = function(client, bufnr)
+          -- print('pylsp manually attached with settings:', vim.inspect(client.config.settings))
+        end,
+      }
+
+      local function get_venv_site_packages()
+        -- Check VIRTUAL_ENV first
+        local venv = os.getenv 'VIRTUAL_ENV'
+        if venv then
+          local glob_pattern = venv .. '/lib/python*/site-packages'
+          local matches = vim.fn.glob(glob_pattern, false, true)
+          if #matches > 0 then
+            return matches[1]
+          end
+        end
+
+        -- Check for .venv in project root
+        local cwd = vim.fn.getcwd()
+        local venv_path = cwd .. '/.venv/lib'
+        if vim.fn.isdirectory(venv_path) == 1 then
+          local glob_pattern = venv_path .. '/python*/site-packages'
+          local matches = vim.fn.glob(glob_pattern, false, true)
+          if #matches > 0 then
+            return matches[1]
+          end
+        end
+
+        return nil
+      end
     end,
   },
-
   { -- Autoformat
     'stevearc/conform.nvim',
     event = { 'BufWritePre' },
@@ -761,15 +1053,15 @@ require('lazy').setup({
           return nil
         else
           return {
-            timeout_ms = 500,
-            lsp_format = 'fallback',
+            timeout_ms = 5000,
+            -- lsp_format = 'fallback',
           }
         end
       end,
       formatters_by_ft = {
         lua = { 'stylua' },
         -- Conform can also run multiple formatters sequentially
-        -- python = { "isort", "black" },
+        python = { 'isort', 'black' },
         --
         -- You can use 'stop_after_first' to run the first available formatter from the list
         -- javascript = { "prettierd", "prettier", stop_after_first = true },
@@ -835,8 +1127,17 @@ require('lazy').setup({
         -- <c-k>: Toggle signature help
         --
         -- See :h blink-cmp-config-keymap for defining your own keymap
-        preset = 'default',
-
+        preset = 'enter',
+        ['<C-space>'] = { 'show', 'show_documentation', 'hide_documentation' },
+        ['<leader><q>'] = { 'hide' },
+        -- ['<Esc>'] = { 'hide', 'fallback' },
+        ['<CR>'] = { 'accept', 'fallback' },
+        ['<Tab>'] = { 'snippet_forward', 'fallback' },
+        ['<S-Tab>'] = { 'snippet_backward', 'fallback' },
+        ['<Up>'] = { 'select_prev', 'fallback' },
+        ['<Down>'] = { 'select_next', 'fallback' },
+        ['<C-p>'] = { 'select_prev', 'fallback' },
+        ['<C-n>'] = { 'select_next', 'fallback' },
         -- For more advanced Luasnip keymaps (e.g. selecting choice nodes, expansion) see:
         --    https://github.com/L3MON4D3/LuaSnip?tab=readme-ov-file#keymaps
       },
@@ -875,7 +1176,6 @@ require('lazy').setup({
       signature = { enabled = true },
     },
   },
-
   { -- You can easily change to a different colorscheme.
     -- Change the name of the colorscheme plugin below, and then
     -- change the command in the config to whatever the name of that colorscheme is.
@@ -923,21 +1223,40 @@ require('lazy').setup({
       --  You could remove this setup call if you don't like it,
       --  and try some other statusline plugin
       local statusline = require 'mini.statusline'
-      -- set use_icons to true if you have a Nerd Font
+      -- -- set use_icons to true if you have a Nerd Font
       statusline.setup { use_icons = vim.g.have_nerd_font }
-
-      -- You can configure sections in the statusline by overriding their
-      -- default behavior. For example, here we set the section for
-      -- cursor location to LINE:COLUMN
+      --
+      -- -- You can configure sections in the statusline by overriding their
+      -- -- default behavior. For example, here we set the section for
+      -- -- cursor location to LINE:COLUMN
       ---@diagnostic disable-next-line: duplicate-set-field
       statusline.section_location = function()
         return '%2l:%-2v'
       end
 
+      --
       -- ... and there is more!
       --  Check out: https://github.com/echasnovski/mini.nvim
     end,
   },
+  -- {
+  --   'nvim-lualine/lualine.nvim',
+  --   dependencies = { 'nvim-tree/nvim-web-devicons' },
+  --   config = function()
+  --     vim.o.laststatus = 0 -- no bottom line
+  --     require('lualine').setup {
+  --       sections = {},
+  --       inactive_sections = {}, -- remove bottom
+  --       winbar = {
+  --         lualine_c = { 'filename' },
+  --         lualine_x = { 'location' },
+  --       },
+  --       inactive_winbar = {
+  --         lualine_c = { 'filename' },
+  --       },
+  --     }
+  --   end,
+  -- },
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',
@@ -963,6 +1282,54 @@ require('lazy').setup({
     --    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
     --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
   },
+  {
+    'nvim-treesitter/nvim-treesitter-context',
+    dependencies = { 'nvim-treesitter/nvim-treesitter' },
+    event = 'VeryLazy',
+    opts = {
+      enable = true, -- turn on
+      max_lines = 5, -- height cap for multi-line headers
+      min_window_height = 0, -- no minimum
+      multiline_threshold = 20,
+      trim_scope = 'outer', -- keep outer lines if longer than max_lines
+      mode = 'topline', -- calculate context from top visible line
+      separator = nil, -- set to '─' if you want a line under it
+      zindex = 40, -- sits below your winbar, above text
+
+      patterns = {
+        default = { 'class', 'function', 'method' },
+
+        python = {
+          'class_definition',
+          'function_definition',
+          'if_statement',
+          'for_statement',
+          'while_statement',
+          'with_statement',
+          -- leave out 'try_statement' so it won’t show
+        },
+      },
+      exact_patterns = {
+        python = true,
+      },
+    },
+    keys = {
+      {
+        '<leader>tc',
+        function()
+          require('treesitter-context').toggle()
+        end,
+        desc = '[T]oggle Treesitter [C]ontext',
+      },
+      {
+        '[c',
+        function()
+          require('treesitter-context').go_to_context()
+        end,
+        desc = 'Jump to outer context',
+      },
+    },
+  },
 
   -- The following comments only work if you have downloaded the kickstart repo, not just copy pasted the
   -- init.lua. If you want these files, they are in the repository, so you can just download them and
@@ -973,12 +1340,12 @@ require('lazy').setup({
   --  Here are some example plugins that I've included in the Kickstart repository.
   --  Uncomment any of the lines below to enable them (you will need to restart nvim).
   --
-  -- require 'kickstart.plugins.debug',
-  -- require 'kickstart.plugins.indent_line',
-  -- require 'kickstart.plugins.lint',
-  -- require 'kickstart.plugins.autopairs',
-  -- require 'kickstart.plugins.neo-tree',
-  -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
+  require 'kickstart.plugins.debug',
+  require 'kickstart.plugins.indent_line',
+  require 'kickstart.plugins.lint',
+  require 'kickstart.plugins.autopairs',
+  require 'kickstart.plugins.neo-tree',
+  require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.
@@ -1011,6 +1378,19 @@ require('lazy').setup({
     },
   },
 })
+
+vim.g.clipboard = {
+  name = 'wl-clipboard',
+  copy = {
+    ['+'] = 'wl-copy',
+    ['*'] = 'wl-copy',
+  },
+  paste = {
+    ['+'] = 'wl-paste --no-newline',
+    ['*'] = 'wl-paste --no-newline',
+  },
+  cache_enabled = 0,
+}
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
